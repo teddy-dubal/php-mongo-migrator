@@ -255,35 +255,35 @@ class Manager
      */
     protected function executeMigration($targetRevision, $environment, $direction)
     {
-        $this->eventDispatcher->dispatch('start');
-        
+        $this->eventDispatcher->dispatch(new \stdClass(), 'start');
+
         // get last applied migration
         $latestRevisionId = $this->getLatestAppliedRevisionId($environment);
-        
+
         // get list of migrations
         $availableRevisions = $this->getAvailableRevisions();
-        
+
         // execute
         if ($direction === 1) {
-            $this->eventDispatcher->dispatch('before_migrate');
-            
+            $this->eventDispatcher->dispatch(new \stdClass(), 'before_migrate');
+
             ksort($availableRevisions);
 
             foreach ($availableRevisions as $revision) {
                 if ($revision->getId() <= $latestRevisionId) {
                     continue;
                 }
-                
+
                 $event = new ApplyRevisionEvent();
                 $event->setRevision($revision);
-                
-                $this->eventDispatcher->dispatch('before_migrate_revision', $event);
+
+                $this->eventDispatcher->dispatch($event, 'before_migrate_revision');
 
                 $revisionPath = $this->getMigrationsDir() . '/' . $revision->getFilename();
                 require_once $revisionPath;
 
                 $className = $revision->getName();
-                
+
                 $migration = new $className(
                     $this->getClient($environment)
                 );
@@ -291,64 +291,64 @@ class Manager
                 $migration->setEnvironment($environment);
 
                 $migration->up();
-                
+
                 $this->logUp($revision->getId(), $environment);
-                
-                $this->eventDispatcher->dispatch('migrate_revision', $event);
-                
+
+                $this->eventDispatcher->dispatch($event, 'migrate_revision');
+
                 if ($targetRevision && in_array($targetRevision, array($revision->getId(), $revision->getName()))) {
                     break;
                 }
             }
-            
-            $this->eventDispatcher->dispatch('migrate');
+
+            $this->eventDispatcher->dispatch(new \stdClass(), 'migrate');
         } else {
-            $this->eventDispatcher->dispatch('before_rollback');
-            
+            $this->eventDispatcher->dispatch(new \stdClass(), 'before_rollback');
+
             // check if nothing to revert
             if (!$latestRevisionId) {
                 return;
             }
-            
+
             krsort($availableRevisions);
 
             foreach ($availableRevisions as $revision) {
                 if ($revision->getId() > $latestRevisionId) {
                     continue;
                 }
-                
+
                 if ($targetRevision && in_array($targetRevision, array($revision->getId(), $revision->getName()))) {
                     break;
                 }
-                
+
                 $event = new ApplyRevisionEvent();
                 $event->setRevision($revision);
-                
-                $this->eventDispatcher->dispatch('before_rollback_revision', $event);
+
+                $this->eventDispatcher->dispatch($event, 'before_rollback_revision');
 
                 $revisionPath = $this->getMigrationsDir() . '/' . $revision->getFilename();
                 require_once $revisionPath;
 
                 $className = $revision->getName();
-                
+
                 $migration = new $className($this->getClient($environment));
                 $migration->setEnvironment($environment);
                 $migration->down();
-                
+
                 $this->logDown($revision->getId(), $environment);
-                
-                $this->eventDispatcher->dispatch('rollback_revision', $event);
-                
+
+                $this->eventDispatcher->dispatch($event, 'rollback_revision');
+
                 if (!$targetRevision) {
                     break;
                 }
             }
-            
-            $this->eventDispatcher->dispatch('rollback');
+
+            $this->eventDispatcher->dispatch(new \stdClass(), 'rollback');
         }
-        
-        $this->eventDispatcher->dispatch('stop');
-        
+
+        $this->eventDispatcher->dispatch(new \stdClass(), 'stop');
+
         // clear cached applied revisions
         unset($this->appliedRevisions[$environment]);
     }
